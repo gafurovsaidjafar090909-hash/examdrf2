@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.conf import settings
 
 class AccountManager(BaseUserManager):
     def create_user(self, phone_number, password=None, **extra_fields):
@@ -66,3 +67,41 @@ class Chat(models.Model):
         return f'{self.user_1} - {self.user_2}'
 
 
+
+class Message(models.Model):
+    chat = models.ForeignKey(Chat,on_delete=models.CASCADE,related_name='messages')
+    sender = models.ForeignKey(Account,on_delete=models.CASCADE,related_name='sent_messages')
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.sender
+
+
+
+
+
+class Group(models.Model):
+    title = models.CharField(max_length=150)
+    avatar = models.CharField(max_length=255, blank=True)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE,related_name="owned_groups",)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.title
+
+
+class GroupMember(models.Model):
+    ROLE_CHOICES = [
+        ("owner", "Owner"),
+        ("admin", "Admin"),
+        ("member", "Member"),
+    ]
+    group = models.ForeignKey(Group,on_delete=models.CASCADE,related_name="members",)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE,related_name="group_memberships",)
+    role = models.CharField(max_length=10,choices=ROLE_CHOICES,default="member",)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["group", "user"],name="unique_group_member",)]
+
+    def __str__(self):
+        return f"{self.user} - {self.group} ({self.role})"

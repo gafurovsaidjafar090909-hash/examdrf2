@@ -73,3 +73,21 @@ class ChatSerializer(serializers.ModelSerializer):
         model = Chat
         fields = ['id', 'user_1', 'user_2', 'created_at']
         read_only_fields = ['id', 'user_1', 'created_at']
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Message
+        fields = ['id', 'chat', 'sender', 'content', 'created_at']
+        read_only_fields = ['id', 'chat', 'sender', 'created_at']
+
+
+from rest_framework import serializers
+from .models import Group
+
+
+class GroupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Group
+        fields = ["id","title","avatar","owner","created_at",]
+        read_only_fields = ["id", "owner", "created_at"]

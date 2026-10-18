@@ -90,9 +90,15 @@ class AvatarDetailView(generics.RetrieveDestroyAPIView):
     serializer_class = AvatarSerializer
     permission_classes = [IsAuthenticated]
     def get_queryset(self):
-        return Avatar.objects.filter(profile=self.request.user.profile)
+        if getattr(self, 'swagger_fake_view', False):
+            return Avatar.objects.none()
 
+        if not self.request.user.is_authenticated:
+            return Avatar.objects.none()
 
+        return Avatar.objects.filter(
+            profile=self.request.user.profile
+        )
 
 
 
@@ -125,5 +131,88 @@ class ChatDetailView(generics.RetrieveDestroyAPIView):
     serializer_class = ChatSerializer
     permission_classes = [IsAuthenticated]
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Avatar.objects.none()
+
+        if not self.request.user.is_authenticated:
+            return Avatar.objects.none()
+
+        return Avatar.objects.filter(
+            profile=self.request.user.profile
+        )
+from django.db.models import Q
+from django.shortcuts import get_object_or_404
+from rest_framework import generics
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import IsAuthenticated
+
+
+class MessagePagination(PageNumberPagination):
+    page_size = 10
+
+
+class ChatMessageView(generics.ListCreateAPIView):
+    serializer_class = MessageSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = MessagePagination
+
+    def get_chat(self):
         user = self.request.user
-        return Chat.objects.filter(Q(user_1=user) | Q(user_2=user))
+
+        return get_object_or_404(
+            Chat.objects.filter(
+                Q(user_1=user) | Q(user_2=user)
+            ),
+            id=self.kwargs['chat_id']
+        )
+
+    def get_queryset(self):
+        return Message.objects.filter(
+            chat=self.get_chat()
+        ).order_by('created_at')
+
+    def perform_create(self, serializer):
+        serializer.save(
+            chat=self.get_chat(),
+            sender=self.request.user
+        )
+
+
+class MessageDeleteView(generics.DestroyAPIView):
+    serializer_class = MessageSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Message.objects.filter(
+            sender=self.request.user
+        )
+
+
+from .permissions import IsGroupOwner, IsGroupOwnerOrAdmin
+
+
+class GroupListCreateView(generics.ListCreateAPIView):
+    serializer_class = GroupSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Group.objects.filter(members__user=self.request.user).distinct()
+    def perform_create(self, serializer):
+        group = serializer.save(owner=self.request.user)
+        GroupMember.objects.create(group=group,user=self.request.user,role="owner",)
+
+
+class GroupDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = GroupSerializer
+    permission_classes = [IsAuthenticated]
+    def get_queryset(self):
+        user = self.request.user
+        return Group.objects.filter(Q(owner=user) | Q(members__user=user, members__role="admin")).distinct()
+    def get_permissions(self):
+        if self.request.method == "DELETE":
+            return [IsAuthenticated(), IsGroupOwner()]
+        
+        if self.request.method in ("PATCH", "PUT"):
+            return [IsAuthenticated(), IsGroupOwnerOrAdmin()]
+
+        return [IsAuthenticated()]
