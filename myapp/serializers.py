@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Account
+from .models import *
 
 
 class AccountSerializer(serializers.ModelSerializer):
@@ -9,11 +9,13 @@ class AccountSerializer(serializers.ModelSerializer):
 
 
 class RegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)
     class Meta:
         model = Account
-        fields = ["id","phone_number","password"]
+        fields = ['id', 'phone_number', 'password']
     def create(self, validated_data):
         return Account.objects.create_user(**validated_data)
+    
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -36,3 +38,21 @@ class AccountMeSerializer(serializers.ModelSerializer):
         model = Account
         fields = ['id', 'phone_number',"password"]
         read_only_fields = fields
+
+
+
+
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(source='user.id',read_only=True)
+    class Meta:
+        model = Profile
+        fields = ['id','user_id','first_name','last_name','username','bio',]
+        read_only_fields = ['id', 'user_id']
+
+
+class ProfileCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Profile
+        fields = ['first_name', 'last_name', 'username', 'bio']
