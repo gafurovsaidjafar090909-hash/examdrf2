@@ -14,3 +14,25 @@ class RegisterSerializer(serializers.ModelSerializer):
         fields = ["id","phone_number","password"]
     def create(self, validated_data):
         return Account.objects.create_user(**validated_data)
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True)
+    def validate(self, data):
+        user = self.context['request'].user
+        if not user.check_password(data['old_password']):
+            raise serializers.ValidationError({'old_password': 'Old password is wrong'})
+        return data
+    def save(self):
+        user = self.context['request'].user
+        user.set_password(self.validated_data['new_password'])
+        user.save()
+        return user
+
+
+class AccountMeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Account
+        fields = ['id', 'phone_number',"password"]
+        read_only_fields = fields
