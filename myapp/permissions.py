@@ -11,3 +11,5 @@ class IsGroupOwnerOrAdmin(BasePermission):
         if obj.owner_id == request.user.id:
             return True
         return obj.members.filter(user=request.user,role="admin",).exists()
+
+

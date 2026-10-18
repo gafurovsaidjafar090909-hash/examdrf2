@@ -1,12 +1,20 @@
 from django.shortcuts import render
 from rest_framework import generics
-from rest_framework.exceptions import NotFound,ValidationError
+from rest_framework.exceptions import NotFound,ValidationError,PermissionDenied
 from .serializers import *
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import *
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_yasg.utils import swagger_auto_schema
 from django.db.models import Q
+from .permissions import IsGroupOwner, IsGroupOwnerOrAdmin
+from django.db import transaction
+from django.shortcuts import get_object_or_404
+
+
+
+
+
 
 
 class RegisterView(generics.CreateAPIView):
@@ -188,7 +196,6 @@ class MessageDeleteView(generics.DestroyAPIView):
         )
 
 
-from .permissions import IsGroupOwner, IsGroupOwnerOrAdmin
 
 
 class GroupListCreateView(generics.ListCreateAPIView):
@@ -216,3 +223,195 @@ class GroupDetailView(generics.RetrieveUpdateDestroyAPIView):
             return [IsAuthenticated(), IsGroupOwnerOrAdmin()]
 
         return [IsAuthenticated()]
+
+
+
+
+
+
+class GroupMemberListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = GroupMemberSerializer
+
+    def get_group(self):
+        return get_object_or_404(
+            Group,
+            pk=self.kwargs["group_id"]
+        )
+
+    def get_queryset(self):
+        group = self.get_group()
+
+        is_member = GroupMember.objects.filter(
+            group=group,
+            user=self.request.user
+        ).exists()
+
+        if not is_member:
+            raise PermissionDenied(
+                "Танҳо аъзои гурӯҳ рӯйхати иштирокчиёнро дида метавонанд."
+            )
+
+        return GroupMember.objects.filter(
+            group=group
+        ).select_related("user", "group")
+
+    def perform_create(self, serializer):
+        group = self.get_group()
+        user = self.request.user
+
+        can_add = (
+            group.owner_id == user.id
+            or GroupMember.objects.filter(
+                group=group,
+                user=user,
+                role="admin"
+            ).exists()
+        )
+
+        if not can_add:
+            raise PermissionDenied(
+                "Танҳо owner ё admin метавонад аъзо илова кунад."
+            )
+
+        new_user = serializer.validated_data["user"]
+
+        if GroupMember.objects.filter(
+            group=group,
+            user=new_user
+        ).exists():
+            raise ValidationError({
+                "user": "Ин корбар аллакай узви гурӯҳ аст."
+            })
+
+        serializer.save(
+            group=group,
+            role="member"
+        )
+
+
+class GroupMemberUpdateView(generics.UpdateAPIView):
+    serializer_class = GroupMemberRoleSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ["patch", "head", "options"]
+
+    def get_group(self):
+        return get_object_or_404(
+            Group,
+            pk=self.kwargs["group_id"]
+        )
+
+    def get_queryset(self):
+        return GroupMember.objects.filter(
+            group_id=self.kwargs["group_id"]
+        ).select_related("group", "user")
+
+    def perform_update(self, serializer):
+        group = self.get_group()
+
+        if group.owner_id != self.request.user.id:
+            raise PermissionDenied(
+                "Танҳо соҳиби гурӯҳ метавонад нақшҳоро тағйир диҳад."
+            )
+
+        member = serializer.instance
+
+        # Соҳибро аз owner ба нақши дигар табдил додан мумкин нест.
+        if (
+            member.user_id == group.owner_id
+            and serializer.validated_data.get("role", member.role) != "owner"
+        ):
+            raise ValidationError({
+                "role": "Нақши соҳиби гурӯҳро бо ин endpoint тағйир додан мумкин нест."
+            })
+
+        serializer.save()
+
+
+class GroupLeaveView(generics.DestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = GroupMemberSerializer
+
+    def get_object(self):
+        group = get_object_or_404(
+            Group,
+            pk=self.kwargs["group_id"]
+        )
+
+        if group.owner_id == self.request.user.id:
+            raise PermissionDenied(
+                "Соҳиби гурӯҳ баромада наметавонад. Аввал бояд соҳиби нав таъин шавад."
+            )
+
+        return get_object_or_404(
+            GroupMember,
+            group=group,
+            user=self.request.user
+        )
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        instance.delete()
+
+
+
+
+
+class GroupMessagePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 50
+
+
+class GroupMessageListCreateView(generics.ListCreateAPIView):
+    serializer_class = GroupMessageSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = GroupMessagePagination
+
+    def get_group(self):
+        return get_object_or_404(Group,pk=self.kwargs["group_id"],)
+    def check_membership(self, group):
+        is_member = GroupMember.objects.filter(group=group,user=self.request.user,).exists()
+        if not is_member:
+            raise PermissionDenied("Танҳо аъзои гурӯҳ метавонанд паёмҳоро истифода баранд.")
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return GroupMessage.objects.none()
+
+        if not self.request.user.is_authenticated:
+            return GroupMessage.objects.none()
+
+        group = self.get_group()
+        self.check_membership(group)
+
+        return GroupMessage.objects.filter(
+            group=group
+        ).select_related(
+            "sender", "group"
+        ).order_by("-created_at", "-id")
+
+    def perform_create(self, serializer):
+        group = self.get_group()
+        self.check_membership(group)
+
+        serializer.save(
+            group=group,
+            sender=self.request.user,
+        )
+
+
+class GroupMessageDeleteView(generics.DestroyAPIView):
+    serializer_class = GroupMessageSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return GroupMessage.objects.none()
+
+        if not self.request.user.is_authenticated:
+            return GroupMessage.objects.none()
+
+        return GroupMessage.objects.filter(
+            sender=self.request.user
+        )
