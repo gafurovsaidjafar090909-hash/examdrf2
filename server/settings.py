@@ -28,6 +28,7 @@ DEBUG = True
 ALLOWED_HOSTS = []
 
 
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -39,7 +40,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'myapp',
+    'drf_yasg',
 ]
+AUTH_USER_MODEL = 'myapp.Account'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
