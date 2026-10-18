@@ -51,7 +51,7 @@ class ProfileCreateView(generics.CreateAPIView):
 
 class ProfileListView(generics.ListAPIView):
     serializer_class = ProfileSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated] 
     def get_queryset(self):
         queryset = Profile.objects.select_related('user')
         search = self.request.query_params.get("search")
@@ -75,6 +75,4 @@ class MyProfileView(generics.UpdateAPIView):
         try:
             return Profile.objects.get(user=self.request.user)
         except Profile.DoesNotExist:
-            raise NotFound(
-                'Profile not found. Create a profile first.'
-            )
+            raise NotFound('Profile not found. Create a profile first.')
