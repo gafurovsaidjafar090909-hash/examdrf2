@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from rest_framework import generics
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound,ValidationError
 from .serializers import *
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -76,3 +76,54 @@ class MyProfileView(generics.UpdateAPIView):
             return Profile.objects.get(user=self.request.user)
         except Profile.DoesNotExist:
             raise NotFound('Profile not found. Create a profile first.')
+
+
+
+class AvatarCreateView(generics.CreateAPIView):
+    serializer_class = AvatarSerializer
+    permission_classes = [IsAuthenticated]
+    def perform_create(self, serializer):
+        serializer.save(profile=self.request.user.profile)
+
+
+class AvatarDetailView(generics.RetrieveDestroyAPIView):
+    serializer_class = AvatarSerializer
+    permission_classes = [IsAuthenticated]
+    def get_queryset(self):
+        return Avatar.objects.filter(profile=self.request.user.profile)
+
+
+
+
+
+
+class ChatListCreateView(generics.ListCreateAPIView):
+    serializer_class = ChatSerializer
+    permission_classes = [IsAuthenticated]
+    def get_queryset(self):
+        user = self.request.user
+        return Chat.objects.filter(Q(user_1=user) | Q(user_2=user))
+    def perform_create(self, serializer):
+        user_2_id = self.request.data.get('user_2')
+        try:
+            user_2 = Account.objects.get(id=user_2_id)
+        except (Account.DoesNotExist, ValueError, TypeError):
+            raise ValidationError({'user_2': 'User not found.'})
+        if user_2 == self.request.user:
+            raise ValidationError('You cannot create a chat with yourself.')
+        chat = Chat.objects.filter(
+            Q(user_1=self.request.user, user_2=user_2) |
+            Q(user_1=user_2, user_2=self.request.user)).first()
+
+        if chat:
+            raise ValidationError('Chat already exists.')
+        serializer.save(user_1=self.request.user, user_2=user_2)
+
+
+
+class ChatDetailView(generics.RetrieveDestroyAPIView):
+    serializer_class = ChatSerializer
+    permission_classes = [IsAuthenticated]
+    def get_queryset(self):
+        user = self.request.user
+        return Chat.objects.filter(Q(user_1=user) | Q(user_2=user))

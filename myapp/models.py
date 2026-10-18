@@ -43,3 +43,26 @@ class Profile(models.Model):
 
     def __str__(self):
         return self.username
+
+
+
+class Avatar(models.Model):
+    profile = models.ForeignKey(Profile,on_delete=models.CASCADE,related_name='avatars')
+    image = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.profile.username
+
+
+
+class Chat(models.Model):
+    user_1 = models.ForeignKey(Account,on_delete=models.CASCADE,related_name='chats_1')
+    user_2 = models.ForeignKey(Account,on_delete=models.CASCADE,related_name='chats_2')
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['user_1', 'user_2'],name='unique_chat_pair')]
+
+    def __str__(self):
+        return f'{self.user_1} - {self.user_2}'
+
+

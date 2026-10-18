@@ -13,4 +13,10 @@ urlpatterns = [
     path('profiles/me/',MyProfileView.as_view(),name='my-profile'),
     path('profiles/<int:pk>/',ProfileDetailView.as_view(),name='profile-detail'),
     path('profiles/create/', ProfileCreateView.as_view(), name='profile-create'),
+
+    path('avatars/', AvatarCreateView.as_view(), name='avatar-create'),
+    path('avatars/<int:pk>/', AvatarDetailView.as_view(), name='avatar-detail'),
+
+    path('chats/', ChatListCreateView.as_view(), name='chat-list-create'),
+    path('chats/<int:pk>/', ChatDetailView.as_view(), name='chat-detail'),
 ]
