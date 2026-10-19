@@ -651,13 +651,13 @@ class FollowingListView(generics.ListAPIView):
     # Муайян мекунад, ки кадом обунаҳо баргардонида шаванд
     def get_queryset(self):
         # Ҳангоми сохтани schema-и Swagger рӯйхати холӣ бармегардонем
+        
         if getattr(self, "swagger_fake_view", False):
             return ChannelFollow.objects.none()
         # Танҳо обунаҳои корбари ҳозираро мегирем
         # select_related("channel") — маълумоти каналро бо JOIN мегирем
         # order_by("-created_at") — обунаҳои навтарин аввал нишон дода мешаванд
         return ChannelFollow.objects.filter(user=self.request.user).select_related("channel").order_by("-created_at")
-
 
 
 # GenericAPIView барои сохтани API View истифода мешавад
