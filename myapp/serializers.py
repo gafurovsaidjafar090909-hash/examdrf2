@@ -143,8 +143,6 @@ class ChannelFollowSerializer(serializers.ModelSerializer):
 
 
 
-
-
 class PostSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
