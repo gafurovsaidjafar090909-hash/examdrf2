@@ -60,6 +60,27 @@ path(
     name="channel-is-following",
 ),
 
+
+    path(
+        'channels/<int:channel_id>/posts/',
+        ChannelPostCreateView.as_view(),
+        name='channel-post-create',
+    ),
+
+    # List posts in a channel
+    path(
+        'channels/<int:channel_id>/posts/',
+        ChannelPostListView.as_view(),
+        name='channel-post-list',
+    ),
+
+    # Retrieve, update, delete a post
+    path(
+        'posts/<int:pk>/',
+        PostDetailView.as_view(),
+        name='post-detail',
+    ),
+    
 ]
 
 

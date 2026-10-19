@@ -41,7 +41,6 @@ class ChangePasswordView(APIView):
 
 class AccountMeView(APIView):
     permission_classes = [IsAuthenticated]
-
     def get(self, request):
         serializer = AccountSerializer(request.user)
         return Response(serializer.data)
@@ -50,20 +49,39 @@ class AccountMeView(APIView):
 class ProfileCreateView(generics.CreateAPIView):
     serializer_class = ProfileCreateSerializer
     permission_classes = [IsAuthenticated]
-
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
 
+
+# ListAPIView — барои нишон додани рӯйхати объектҳо истифода мешавад
 class ProfileListView(generics.ListAPIView):
+    # Serializer-и истифодашаванда барои табдил додани профилҳо
     serializer_class = ProfileSerializer
-    permission_classes = [IsAuthenticated] 
+    # Танҳо корбари аутентификатсияшуда метавонад ба ин API дастрасӣ дошта бошад
+    permission_classes = [IsAuthenticated]
+    # Ин метод муайян мекунад, ки кадом профилҳо аз база гирифта шаванд
     def get_queryset(self):
+        # Ҳамаи профилҳоро мегирем
+        # select_related('user') маълумоти user-ро бо JOIN мегирад,
+        # то барои ҳар профил дархости иловагӣ ба база кам шавад
         queryset = Profile.objects.select_related('user')
+        # Қимати search-ро аз URL мегирем
+        # Масалан: /profiles/?search=ali
         search = self.request.query_params.get("search")
+        # Агар search холӣ набошад, ҷустуҷӯ мекунем
         if search:
-            queryset = queryset.filter(Q(first_name__icontains=search) | Q(last_name__icontains=search) | Q(username__icontains=search))
+            # Ҷустуҷӯ аз рӯйи first_name ё last_name ё username
+            # Q ва аломати | маънои OR доранд
+            # icontains — ҷустуҷӯи матн бе фарқ кардани ҳарфҳои калон ва хурд
+            queryset = queryset.filter(
+                Q(user__first_name__icontains=search) |
+                Q(user__last_name__icontains=search) |
+                Q(user__username__icontains=search)
+            )
+        # Рӯйхати профилҳои ёфтшударо бармегардонем
         return queryset
+
 
 
 class ProfileDetailView(generics.RetrieveAPIView):
@@ -73,71 +91,128 @@ class ProfileDetailView(generics.RetrieveAPIView):
 
 
 
+
+# View барои тағйир додани профили корбари ҳозира
 class MyProfileView(generics.UpdateAPIView):
+    # Serializer-и барои профил истифодашаванда
     serializer_class = ProfileSerializer
+    # Танҳо корбари login карда метавонад ин API-ро истифода барад
     permission_classes = [IsAuthenticated]
+    # Танҳо PATCH, OPTIONS ва HEAD иҷозат дода мешаванд
+    # PUT, POST ва DELETE иҷозат дода намешаванд
     http_method_names = ['patch', 'options', 'head']
+    # Муайян кардани профиле, ки бояд тағйир дода шавад
     def get_object(self):
+        # Кӯшиш мекунем профили корбари ҳозираро ёбем
         try:
             return Profile.objects.get(user=self.request.user)
+        # Агар чунин профил вуҷуд надошта бошад
         except Profile.DoesNotExist:
+            # Хатои 404 бармегардонем
+            # Паём мегӯяд, ки аввал профил сохтан лозим аст
             raise NotFound('Profile not found. Create a profile first.')
 
 
 
+
+# View барои сохтани Avatar-и нав
 class AvatarCreateView(generics.CreateAPIView):
+    # Serializer барои коркарди маълумоти Avatar
     serializer_class = AvatarSerializer
+    # Танҳо корбари login карда метавонад Avatar созад
     permission_classes = [IsAuthenticated]
+    # Пеш аз нигоҳ доштани Avatar ин метод иҷро мешавад
     def perform_create(self, serializer):
+        # serializer.save() — Avatar-ро дар база нигоҳ медорад
+        # profile=self.request.user.profile — Avatar-ро ба профили
+        # корбари ҳозираи login карда пайваст мекунад
         serializer.save(profile=self.request.user.profile)
 
 
+# View барои дидан ва нест кардани Avatar
 class AvatarDetailView(generics.RetrieveDestroyAPIView):
+    # Serializer барои коркарди маълумоти Avatar
     serializer_class = AvatarSerializer
+    # Танҳо корбари login карда метавонад API-ро истифода барад
     permission_classes = [IsAuthenticated]
+    # Муайян кардани Avatar-ҳое, ки корбар ба онҳо дастрасӣ дорад
     def get_queryset(self):
+        # Агар Swagger View-ро танҳо барои сохтани ҳуҷҷатҳо тафтиш кунад,
+        # рӯйхати холӣ бармегардонем, то ба request.user ниёз нашавад
         if getattr(self, 'swagger_fake_view', False):
             return Avatar.objects.none()
+        # Агар корбар login накарда бошад, рӯйхати холӣ бармегардонем
         if not self.request.user.is_authenticated:
             return Avatar.objects.none()
+        # Танҳо Avatar-ҳоеро мегирем, ки ба профили корбари ҳозира тааллуқ доранд
+        # Ин ба пешгирии дастрасӣ ба Avatar-и дигарон кӯмак мекунад
         return Avatar.objects.filter(profile=self.request.user.profile)
 
 
 
 
+# View барои дидани чатҳо ва сохтани чати нав
 class ChatListCreateView(generics.ListCreateAPIView):
+    # Serializer барои коркарди маълумоти Chat
     serializer_class = ChatSerializer
+    # Танҳо корбари login карда метавонад ин API-ро истифода барад
     permission_classes = [IsAuthenticated]
+    # Муайян кардани рӯйхати чатҳое, ки корбари ҳозира иштирокчии он аст
     def get_queryset(self):
+        # Корбари ҳозираи login карда
         user = self.request.user
+        # Чатҳое, ки корбар иштирокчии якум ё дуюм аст
+        # Q(...) | Q(...) маънои OR (ё)-ро дорад
         return Chat.objects.filter(Q(user_1=user) | Q(user_2=user))
+    # Ин метод ҳангоми сохтани чати нав иҷро мешавад
     def perform_create(self, serializer):
+        # ID-и корбари дуюмро аз маълумоти POST мегирем
         user_2_id = self.request.data.get('user_2')
+        # Кӯшиш мекунем корбари дуюмро аз база ёбем
         try:
             user_2 = Account.objects.get(id=user_2_id)
+        # Агар корбар ёфт нашавад ё ID нодуруст бошад
         except (Account.DoesNotExist, ValueError, TypeError):
+            # Хатои 400 бо паёми фаҳмо бармегардонем
             raise ValidationError({'user_2': 'User not found.'})
+        # Корбар наметавонад бо худаш чат созад
         if user_2 == self.request.user:
             raise ValidationError('You cannot create a chat with yourself.')
-        chat = Chat.objects.filter(
-            Q(user_1=self.request.user, user_2=user_2) |
-            Q(user_1=user_2, user_2=self.request.user)).first()
+        # Санҷиш мекунем, ки байни ин ду корбар чат аллакай вуҷуд дорад ё не
+        # Ҳолати якум: корбари ҳозира user_1 аст
+        # Ҳолати дуюм: корбари ҳозира user_2 аст
+        # Ин ду шарт барои онанд, ки чат дар ҳар ду тартиб ҷустуҷӯ шавад
+        chat = Chat.objects.filter(Q(user_1=self.request.user, user_2=user_2) | Q(user_1=user_2, user_2=self.request.user)).first()
+        # Агар чат аллакай вуҷуд дошта бошад, чати такрорӣ намесозем
         if chat:
             raise ValidationError('Chat already exists.')
-        serializer.save(user_1=self.request.user, user_2=user_2)
+
+        # Агар ҳамаи санҷишҳо гузаранд, чатро дар база нигоҳ медорем
+        # user_1 — корбари ҳозираи login карда
+        # user_2 — корбари интихобшуда
+        serializer.save(user_1=self.request.user,user_2=user_2)
 
 
-
+# View барои дидан ва нест кардани як чат
 class ChatDetailView(generics.RetrieveDestroyAPIView):
+    # Serializer барои коркарди маълумоти Chat
     serializer_class = ChatSerializer
+    # Танҳо корбари login карда метавонад ин API-ро истифода барад
     permission_classes = [IsAuthenticated]
+    # Муайян мекунад, ки корбар ба кадом чатҳо дастрасӣ дорад
     def get_queryset(self):
+        # Агар Swagger танҳо ҳуҷҷатҳои API-ро созад,
+        # QuerySet-и холӣ бармегардонем
         if getattr(self, 'swagger_fake_view', False):
-            return Avatar.objects.none()
+            return Chat.objects.none()
+        # Агар корбар login накарда бошад,
+        # ягон чатро дастрас намекунем
         if not self.request.user.is_authenticated:
-            return Avatar.objects.none()
-        return Avatar.objects.filter(profile=self.request.user.profile)
-
+            return Chat.objects.none()
+        # Танҳо чатҳоеро мегирем, ки корбари ҳозира иштирокчии он аст
+        # user_1 — иштирокчии якум
+        # user_2 — иштирокчии дуюм
+        return Chat.objects.filter(Q(user_1=self.request.user) | Q(user_2=self.request.user))
 
 
 
@@ -368,3 +443,56 @@ class ChannelIsFollowingView(generics.GenericAPIView):
         channel = get_object_or_404(Channel, pk=channel_id)
         is_following = ChannelFollow.objects.filter(user=request.user,channel=channel,).exists()
         return Response({"channel_id": channel.id,"is_following": is_following,})
+
+
+
+
+
+
+# Pagination: 10 posts per page
+class PostPagination(PageNumberPagination):
+    page_size = 10
+
+
+# POST /api/channels/<channel_id>/posts/
+class ChannelPostCreateView(generics.CreateAPIView):
+    serializer_class = PostSerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        channel_id = self.kwargs['channel_id']
+        channel = get_object_or_404(Channel,id=channel_id)
+        # Only channel owner can create posts
+        if channel.owner != self.request.user:
+            raise PermissionDenied("Only the channel owner can create posts.")
+        # Channel is taken from URL, not from request body
+        serializer.save(channel=channel)
+
+
+# GET /api/channels/<channel_id>/posts/
+class ChannelPostListView(generics.ListAPIView):
+    serializer_class = PostSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = PostPagination
+    def get_queryset(self):
+        channel_id = self.kwargs['channel_id']
+        channel = get_object_or_404(Channel,id=channel_id)
+        user = self.request.user
+        # Check access to private channels
+        is_owner = channel.owner == user
+        is_follower = channel.followers.filter(user=user).exists()
+        if channel.type == 'private' and not (is_owner or is_follower):
+            raise PermissionDenied("You do not have access to this channel.")
+        # Newest posts first
+        return Post.objects.filter(channel=channel).order_by('-created_at')
+
+
+# GET /api/posts/<id>/
+# PATCH /api/posts/<id>/
+# DELETE /api/posts/<id>/
+class PostDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = PostSerializer
+    permission_classes = [IsAuthenticated]
+    def get_queryset(self):
+        # Only posts belonging to the user's own channels
+        return Post.objects.filter(channel__owner=self.request.user)

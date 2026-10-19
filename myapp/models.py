@@ -157,3 +157,17 @@ class ChannelFollow(models.Model):
 
     def __str__(self):
         return f"{self.user} follows {self.channel}"
+
+
+class Post(models.Model):
+    channel = models.ForeignKey(Channel,on_delete=models.CASCADE,related_name="posts")
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.title
+
+
+

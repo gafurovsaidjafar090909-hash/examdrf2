@@ -137,3 +137,14 @@ class ChannelFollowSerializer(serializers.ModelSerializer):
         model = ChannelFollow
         fields = ["id","channel","channel_title","channel_type","created_at",]
         read_only_fields = fields
+
+
+
+
+
+
+class PostSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Post
+        fields = ['id','channel','title','description','content','created_at',]
+        read_only_fields = ['id', 'channel', 'created_at']
