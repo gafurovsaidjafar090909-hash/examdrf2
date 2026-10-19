@@ -691,7 +691,7 @@ class PostPagination(PageNumberPagination):
 # POST /api/channels/<channel_id>/posts/
 # API барои сохтани пост дар канали муайян
 class ChannelPostCreateView(generics.CreateAPIView):
-    
+
     # Serializer барои санҷидан ва нигоҳ доштани маълумоти пост
     serializer_class = PostSerializer
     # Танҳо корбарони login карда метавонанд
@@ -717,16 +717,12 @@ class ChannelPostCreateView(generics.CreateAPIView):
 # GET /api/channels/<channel_id>/posts/
 # API барои гирифтани рӯйхати постҳои канал
 class ChannelPostListView(generics.ListAPIView):
-
     # Serializer барои табдил додани post ба JSON
     serializer_class = PostSerializer
-
     # Танҳо user-и login карда метавонад
     permission_classes = [IsAuthenticated]
-
     # Дар як саҳифа 10 пост нишон медиҳад
     pagination_class = PostPagination
-
     # QuerySet-и постҳоеро, ки бояд нишон дода шаванд, муайян мекунад
     def get_queryset(self):
 
