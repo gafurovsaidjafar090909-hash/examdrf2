@@ -651,7 +651,7 @@ class FollowingListView(generics.ListAPIView):
     # Муайян мекунад, ки кадом обунаҳо баргардонида шаванд
     def get_queryset(self):
         # Ҳангоми сохтани schema-и Swagger рӯйхати холӣ бармегардонем
-        
+
         if getattr(self, "swagger_fake_view", False):
             return ChannelFollow.objects.none()
         # Танҳо обунаҳои корбари ҳозираро мегирем
@@ -691,6 +691,7 @@ class PostPagination(PageNumberPagination):
 # POST /api/channels/<channel_id>/posts/
 # API барои сохтани пост дар канали муайян
 class ChannelPostCreateView(generics.CreateAPIView):
+    
     # Serializer барои санҷидан ва нигоҳ доштани маълумоти пост
     serializer_class = PostSerializer
     # Танҳо корбарони login карда метавонанд
