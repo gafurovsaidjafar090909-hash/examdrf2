@@ -117,3 +117,43 @@ class GroupMessage(models.Model):
         ordering = ["created_at"]
     def __str__(self):
         return f"{self.sender} - {self.group}"
+
+
+
+import uuid
+from django.conf import settings
+from django.db import models
+
+
+class Channel(models.Model):
+    CHANNEL_TYPES = [
+        ("public", "Public"),
+        ("private", "Private"),
+    ]
+    title = models.CharField(max_length=150)
+    description = models.TextField(blank=True)
+    type = models.CharField(max_length=10, choices=CHANNEL_TYPES)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE,related_name="owned_channels",)
+    invite_link = models.UUIDField(default=uuid.uuid4,unique=True,editable=False,null=True,blank=True,)
+    created_at = models.DateTimeField(auto_now_add=True)
+    def save(self, *args, **kwargs):
+        if self.type == "private":
+            self.invite_link = None
+        elif self.invite_link is None:
+            self.invite_link = uuid.uuid4()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.title
+
+
+
+class ChannelFollow(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE,related_name="channel_follows",)
+    channel = models.ForeignKey("myapp.Channel",on_delete=models.CASCADE,related_name="followers",)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "channel"],name="unique_user_channel_follow",)]
+
+    def __str__(self):
+        return f"{self.user} follows {self.channel}"

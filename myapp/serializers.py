@@ -42,8 +42,6 @@ class AccountMeSerializer(serializers.ModelSerializer):
 
 
 
-
-
 class ProfileSerializer(serializers.ModelSerializer):
     user_id = serializers.IntegerField(source='user.id',read_only=True)
     class Meta:
@@ -62,10 +60,6 @@ class AvatarSerializer(serializers.ModelSerializer):
     class Meta:
         model = Avatar
         fields = ['id', 'image']
-
-
-from rest_framework import serializers
-from .models import Chat
 
 
 class ChatSerializer(serializers.ModelSerializer):
@@ -113,3 +107,33 @@ class GroupMessageSerializer(serializers.ModelSerializer):
         model = GroupMessage
         fields = ["id","group","sender","content","created_at",]
         read_only_fields = ["id","group","sender","created_at",]
+
+
+
+class ChannelSerializer(serializers.ModelSerializer):
+    owner = serializers.ReadOnlyField(source="owner_id")
+    invite_link = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Channel
+        fields = ["id","title","description","type","owner","invite_link","created_at",]
+        read_only_fields = ["id", "owner", "invite_link", "created_at"]
+    def get_invite_link(self, obj):
+        if obj.type == "public" and obj.invite_link:
+            request = self.context.get("request")
+            if request:
+                return request.build_absolute_uri(f"/channels/join/{obj.invite_link}/")
+            return str(obj.invite_link)
+        return None
+
+
+
+
+
+class ChannelFollowSerializer(serializers.ModelSerializer):
+    channel_title = serializers.CharField(source="channel.title",read_only=True,)
+    channel_type = serializers.CharField(source="channel.type",read_only=True,)
+    class Meta:
+        model = ChannelFollow
+        fields = ["id","channel","channel_title","channel_type","created_at",]
+        read_only_fields = fields

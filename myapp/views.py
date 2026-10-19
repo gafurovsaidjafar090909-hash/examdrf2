@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from rest_framework import generics
+from rest_framework import generics,status
 from rest_framework.exceptions import NotFound,ValidationError,PermissionDenied
 from .serializers import *
 from rest_framework.permissions import *
@@ -8,12 +8,10 @@ from rest_framework.views import APIView
 from drf_yasg.utils import swagger_auto_schema
 from django.db.models import Q
 from .permissions import IsGroupOwner, IsGroupOwnerOrAdmin
-from django.db import transaction
+from django.db import transaction,IntegrityError
 from django.shortcuts import get_object_or_404
-
-
-
-
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 
 
 
@@ -100,13 +98,9 @@ class AvatarDetailView(generics.RetrieveDestroyAPIView):
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return Avatar.objects.none()
-
         if not self.request.user.is_authenticated:
             return Avatar.objects.none()
-
-        return Avatar.objects.filter(
-            profile=self.request.user.profile
-        )
+        return Avatar.objects.filter(profile=self.request.user.profile)
 
 
 
@@ -128,7 +122,6 @@ class ChatListCreateView(generics.ListCreateAPIView):
         chat = Chat.objects.filter(
             Q(user_1=self.request.user, user_2=user_2) |
             Q(user_1=user_2, user_2=self.request.user)).first()
-
         if chat:
             raise ValidationError('Chat already exists.')
         serializer.save(user_1=self.request.user, user_2=user_2)
@@ -141,18 +134,11 @@ class ChatDetailView(generics.RetrieveDestroyAPIView):
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return Avatar.objects.none()
-
         if not self.request.user.is_authenticated:
             return Avatar.objects.none()
+        return Avatar.objects.filter(profile=self.request.user.profile)
 
-        return Avatar.objects.filter(
-            profile=self.request.user.profile
-        )
-from django.db.models import Q
-from django.shortcuts import get_object_or_404
-from rest_framework import generics
-from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import IsAuthenticated
+
 
 
 class MessagePagination(PageNumberPagination):
@@ -163,37 +149,20 @@ class ChatMessageView(generics.ListCreateAPIView):
     serializer_class = MessageSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = MessagePagination
-
     def get_chat(self):
         user = self.request.user
-
-        return get_object_or_404(
-            Chat.objects.filter(
-                Q(user_1=user) | Q(user_2=user)
-            ),
-            id=self.kwargs['chat_id']
-        )
-
+        return get_object_or_404(Chat.objects.filter(Q(user_1=user) | Q(user_2=user)),id=self.kwargs['chat_id'])
     def get_queryset(self):
-        return Message.objects.filter(
-            chat=self.get_chat()
-        ).order_by('created_at')
-
+        return Message.objects.filter(chat=self.get_chat()).order_by('created_at')
     def perform_create(self, serializer):
-        serializer.save(
-            chat=self.get_chat(),
-            sender=self.request.user
-        )
+        serializer.save(chat=self.get_chat(),sender=self.request.user)
 
 
 class MessageDeleteView(generics.DestroyAPIView):
     serializer_class = MessageSerializer
     permission_classes = [IsAuthenticated]
-
     def get_queryset(self):
-        return Message.objects.filter(
-            sender=self.request.user
-        )
+        return Message.objects.filter(sender=self.request.user)
 
 
 
@@ -201,7 +170,6 @@ class MessageDeleteView(generics.DestroyAPIView):
 class GroupListCreateView(generics.ListCreateAPIView):
     serializer_class = GroupSerializer
     permission_classes = [IsAuthenticated]
-
     def get_queryset(self):
         return Group.objects.filter(members__user=self.request.user).distinct()
     def perform_create(self, serializer):
@@ -227,133 +195,58 @@ class GroupDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 
-
-
 class GroupMemberListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = GroupMemberSerializer
-
     def get_group(self):
-        return get_object_or_404(
-            Group,
-            pk=self.kwargs["group_id"]
-        )
-
+        return get_object_or_404(Group,pk=self.kwargs["group_id"])
     def get_queryset(self):
         group = self.get_group()
-
-        is_member = GroupMember.objects.filter(
-            group=group,
-            user=self.request.user
-        ).exists()
-
+        is_member = GroupMember.objects.filter(group=group,user=self.request.user).exists()
         if not is_member:
-            raise PermissionDenied(
-                "Танҳо аъзои гурӯҳ рӯйхати иштирокчиёнро дида метавонанд."
-            )
-
-        return GroupMember.objects.filter(
-            group=group
-        ).select_related("user", "group")
-
+            raise PermissionDenied("Танҳо аъзои гурӯҳ рӯйхати иштирокчиёнро дида метавонанд.")
+        return GroupMember.objects.filter(group=group).select_related("user", "group")
     def perform_create(self, serializer):
         group = self.get_group()
         user = self.request.user
-
-        can_add = (
-            group.owner_id == user.id
-            or GroupMember.objects.filter(
-                group=group,
-                user=user,
-                role="admin"
-            ).exists()
-        )
-
+        can_add = (group.owner_id == user.id or GroupMember.objects.filter(group=group,user=user,role="admin").exists())
         if not can_add:
-            raise PermissionDenied(
-                "Танҳо owner ё admin метавонад аъзо илова кунад."
-            )
-
+            raise PermissionDenied("Танҳо owner ё admin метавонад аъзо илова кунад.")
         new_user = serializer.validated_data["user"]
-
-        if GroupMember.objects.filter(
-            group=group,
-            user=new_user
-        ).exists():
-            raise ValidationError({
-                "user": "Ин корбар аллакай узви гурӯҳ аст."
-            })
-
-        serializer.save(
-            group=group,
-            role="member"
-        )
+        if GroupMember.objects.filter(group=group,user=new_user).exists():
+            raise ValidationError({"user": "Ин корбар аллакай узви гурӯҳ аст."})
+        serializer.save(group=group,role="member")
 
 
 class GroupMemberUpdateView(generics.UpdateAPIView):
     serializer_class = GroupMemberRoleSerializer
     permission_classes = [IsAuthenticated]
     http_method_names = ["patch", "head", "options"]
-
     def get_group(self):
-        return get_object_or_404(
-            Group,
-            pk=self.kwargs["group_id"]
-        )
-
+        return get_object_or_404(Group,pk=self.kwargs["group_id"])
     def get_queryset(self):
-        return GroupMember.objects.filter(
-            group_id=self.kwargs["group_id"]
-        ).select_related("group", "user")
-
+        return GroupMember.objects.filter(group_id=self.kwargs["group_id"]).select_related("group", "user")
     def perform_update(self, serializer):
         group = self.get_group()
-
         if group.owner_id != self.request.user.id:
-            raise PermissionDenied(
-                "Танҳо соҳиби гурӯҳ метавонад нақшҳоро тағйир диҳад."
-            )
-
+            raise PermissionDenied("Танҳо соҳиби гурӯҳ метавонад нақшҳоро тағйир диҳад.")
         member = serializer.instance
-
-        # Соҳибро аз owner ба нақши дигар табдил додан мумкин нест.
-        if (
-            member.user_id == group.owner_id
-            and serializer.validated_data.get("role", member.role) != "owner"
-        ):
-            raise ValidationError({
-                "role": "Нақши соҳиби гурӯҳро бо ин endpoint тағйир додан мумкин нест."
-            })
-
+        if (member.user_id == group.owner_id and serializer.validated_data.get("role", member.role) != "owner"):
+            raise ValidationError({"role": "Нақши соҳиби гурӯҳро бо ин endpoint тағйир додан мумкин нест."})
         serializer.save()
 
 
 class GroupLeaveView(generics.DestroyAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = GroupMemberSerializer
-
     def get_object(self):
-        group = get_object_or_404(
-            Group,
-            pk=self.kwargs["group_id"]
-        )
-
+        group = get_object_or_404(Group,pk=self.kwargs["group_id"])
         if group.owner_id == self.request.user.id:
-            raise PermissionDenied(
-                "Соҳиби гурӯҳ баромада наметавонад. Аввал бояд соҳиби нав таъин шавад."
-            )
-
-        return get_object_or_404(
-            GroupMember,
-            group=group,
-            user=self.request.user
-        )
-
+            raise PermissionDenied("Соҳиби гурӯҳ баромада наметавонад. Аввал бояд соҳиби нав таъин шавад.")
+        return get_object_or_404(GroupMember,group=group,user=self.request.user)
     @transaction.atomic
     def perform_destroy(self, instance):
         instance.delete()
-
-
 
 
 
@@ -367,38 +260,24 @@ class GroupMessageListCreateView(generics.ListCreateAPIView):
     serializer_class = GroupMessageSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = GroupMessagePagination
-
     def get_group(self):
         return get_object_or_404(Group,pk=self.kwargs["group_id"],)
     def check_membership(self, group):
         is_member = GroupMember.objects.filter(group=group,user=self.request.user,).exists()
         if not is_member:
             raise PermissionDenied("Танҳо аъзои гурӯҳ метавонанд паёмҳоро истифода баранд.")
-
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return GroupMessage.objects.none()
-
         if not self.request.user.is_authenticated:
             return GroupMessage.objects.none()
-
         group = self.get_group()
         self.check_membership(group)
-
-        return GroupMessage.objects.filter(
-            group=group
-        ).select_related(
-            "sender", "group"
-        ).order_by("-created_at", "-id")
-
+        return GroupMessage.objects.filter(group=group).select_related("sender", "group").order_by("-created_at", "-id")
     def perform_create(self, serializer):
         group = self.get_group()
         self.check_membership(group)
-
-        serializer.save(
-            group=group,
-            sender=self.request.user,
-        )
+        serializer.save(group=group,sender=self.request.user,)
 
 
 class GroupMessageDeleteView(generics.DestroyAPIView):
@@ -408,10 +287,84 @@ class GroupMessageDeleteView(generics.DestroyAPIView):
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return GroupMessage.objects.none()
-
         if not self.request.user.is_authenticated:
             return GroupMessage.objects.none()
+        return GroupMessage.objects.filter(sender=self.request.user)
 
-        return GroupMessage.objects.filter(
-            sender=self.request.user
-        )
+
+class ChannelListCreateView(generics.ListCreateAPIView):
+    serializer_class = ChannelSerializer
+    permission_classes = [IsAuthenticated]
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Channel.objects.none()
+        if not self.request.user.is_authenticated:
+            return Channel.objects.filter(type="public")
+        return Channel.objects.filter(Q(type="public") | Q(owner=self.request.user)).distinct()
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+
+class ChannelDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = ChannelSerializer
+    permission_classes = [IsAuthenticated]
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Channel.objects.none()
+        if not self.request.user.is_authenticated:
+            return Channel.objects.none()
+        return Channel.objects.filter(Q(type="public") | Q(owner=self.request.user)).distinct()
+    def perform_update(self, serializer):
+        channel = self.get_object()
+        if channel.owner_id != self.request.user.id:
+            raise PermissionDenied("Только владелец может изменить канал.")
+        serializer.save()
+    def perform_destroy(self, instance):
+        if instance.owner_id != self.request.user.id:
+            raise PermissionDenied("Только владелец может удалить канал.")
+        instance.delete()
+
+
+
+
+
+class ChannelFollowView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ChannelFollowSerializer
+    def post(self, request, channel_id):
+        channel = get_object_or_404(Channel, pk=channel_id)
+        if channel.type == "private":
+            raise PermissionDenied("Барои обуна шудан ба канали private иҷозат лозим аст.")
+        try:
+            with transaction.atomic():
+                follow, created = ChannelFollow.objects.get_or_create(user=request.user,channel=channel,)
+        except IntegrityError:
+            created = False
+            follow = ChannelFollow.objects.filter(user=request.user,channel=channel,).first()
+        if not created:
+            return Response({"detail": "Шумо аллакай ба ин канал обуна ҳастед."},status=status.HTTP_400_BAD_REQUEST,)
+        return Response(
+            self.get_serializer(follow).data,status=status.HTTP_201_CREATED,)
+    def delete(self, request, channel_id):
+        channel = get_object_or_404(Channel, pk=channel_id)
+        deleted, _ = ChannelFollow.objects.filter(user=request.user,channel=channel,).delete()
+        if not deleted:
+            return Response({"detail": "Шумо ба ин канал обуна нестед."},status=status.HTTP_404_NOT_FOUND,)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FollowingListView(generics.ListAPIView):
+    serializer_class = ChannelFollowSerializer
+    permission_classes = [IsAuthenticated]
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return ChannelFollow.objects.none()
+        return ChannelFollow.objects.filter(user=self.request.user).select_related("channel").order_by("-created_at")
+
+
+class ChannelIsFollowingView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request, channel_id):
+        channel = get_object_or_404(Channel, pk=channel_id)
+        is_following = ChannelFollow.objects.filter(user=request.user,channel=channel,).exists()
+        return Response({"channel_id": channel.id,"is_following": is_following,})

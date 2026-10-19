@@ -31,6 +31,35 @@ urlpatterns = [
     path("groups/<int:group_id>/members/me/",GroupLeaveView.as_view(),name="group-leave",),
     path("groups/<int:group_id>/messages/",GroupMessageListCreateView.as_view(),name="group-message-list-create",),
     path("group-messages/<int:pk>/",GroupMessageDeleteView.as_view(),name="group-message-delete",),
+
+path(
+    "channels/",
+    ChannelListCreateView.as_view(),
+    name="channel-list-create",
+),
+path(
+    "channels/<int:pk>/",
+    ChannelDetailView.as_view(),
+    name="channel-detail",
+),
+
+
+path(
+    "channels/<int:channel_id>/follow/",
+    ChannelFollowView.as_view(),
+    name="channel-follow",
+),
+path(
+    "following/",
+    FollowingListView.as_view(),
+    name="following-list",
+),
+path(
+    "channels/<int:channel_id>/is-following/",
+    ChannelIsFollowingView.as_view(),
+    name="channel-is-following",
+),
+
 ]
 
 
