@@ -94,7 +94,7 @@ class GroupMemberSerializer(serializers.ModelSerializer):
 
 
 class GroupMemberRoleSerializer(serializers.ModelSerializer):
-    
+
     class Meta:
         model = GroupMember
         fields = ["id", "group", "user", "role"]
@@ -105,6 +105,7 @@ class GroupMemberRoleSerializer(serializers.ModelSerializer):
 
 
 class GroupMessageSerializer(serializers.ModelSerializer):
+    
     class Meta:
         model = GroupMessage
         fields = ["id","group","sender","content","created_at",]
