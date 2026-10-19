@@ -105,7 +105,7 @@ class GroupMemberRoleSerializer(serializers.ModelSerializer):
 
 
 class GroupMessageSerializer(serializers.ModelSerializer):
-    
+
     class Meta:
         model = GroupMessage
         fields = ["id","group","sender","content","created_at",]
@@ -116,7 +116,6 @@ class GroupMessageSerializer(serializers.ModelSerializer):
 class ChannelSerializer(serializers.ModelSerializer):
     owner = serializers.ReadOnlyField(source="owner_id")
     invite_link = serializers.SerializerMethodField()
-
     class Meta:
         model = Channel
         fields = ["id","title","description","type","owner","invite_link","created_at",]
