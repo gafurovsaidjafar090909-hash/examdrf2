@@ -88,6 +88,7 @@ class GroupSerializer(serializers.ModelSerializer):
 class GroupMemberSerializer(serializers.ModelSerializer):
     class Meta:
         model = GroupMember
+        
         fields = ["id", "group", "user", "role"]
         read_only_fields = ["id", "group", "role"]
 
