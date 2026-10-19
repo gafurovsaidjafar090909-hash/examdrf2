@@ -725,30 +725,21 @@ class ChannelPostListView(generics.ListAPIView):
     pagination_class = PostPagination
     # QuerySet-и постҳоеро, ки бояд нишон дода шаванд, муайян мекунад
     def get_queryset(self):
-
         # ID-и каналро аз URL мегирем
         channel_id = self.kwargs['channel_id']
-
         # Каналро аз база меёбем
         # Агар канал набошад, 404 бармегардад
         channel = get_object_or_404(Channel, id=channel_id)
-
         # User-и ҳозираро мегирем
         user = self.request.user
-
         # Санҷиш: user соҳиби канал аст ё не
         is_owner = channel.owner == user
-
         # Санҷиш: user ба канал подписка шудааст ё не
         is_follower = channel.followers.filter(user=user).exists()
-
         # Агар канал private бошад ва user соҳиби канал ё follower набошад
         if channel.type == 'private' and not (is_owner or is_follower):
-
             # Дастрасӣ манъ мешавад — HTTP 403
-            raise PermissionDenied(
-                "You do not have access to this channel."
-            )
+            raise PermissionDenied("You do not have access to this channel.")
 
         # Постҳои ҳамин каналро мегирем
         # Постҳои нав аввал меоянд
